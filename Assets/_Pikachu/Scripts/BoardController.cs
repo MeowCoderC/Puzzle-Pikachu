@@ -8,31 +8,28 @@ namespace CahtFramework.Pikachu
     public class BoardController : MonoBehaviour
     {
         [Header("References")] 
-        [SerializeField] private NodeView nodeViewPrefab;
-        [SerializeField] private Transform boardContainer;
-        [SerializeField] private Transform spawnOrigin;
+        [SerializeField] private NodeView     nodeViewPrefab;
+        [SerializeField] private Transform    boardContainer;
+        [SerializeField] private Transform    spawnOrigin;
+        [SerializeField] private PathRenderer pathRenderer;
 
         [Header("Visuals")] 
-        [SerializeField] private LineRenderer pathLineRenderer;
-        [SerializeField] private float        pathDisplayDuration = 0.3f;
-        [SerializeField] private float        shiftDuration       = 0.2f;
+        [SerializeField] private float shiftDuration = 0.2f;
 
         [Header("Settings")] 
         [SerializeField] private Vector2 nodeSpacing = new(1.1f, 1.1f);
 
-        private Node[,]                    grid;
-        private Dictionary<Node, NodeView> nodeToView = new();
-        private Dictionary<NodeView, Node> viewToNode = new();
+        public BoardData Data { get; private set; } = new BoardData();
 
         private LevelData currentLevelData;
         private ThemeData currentTheme;
 
-        private IInput           input;
-        private IPathfinding     pathfinder;
-        private IShuffleStrategy shuffleStrategy; // Module trộn bài
+        private IInput            input;
+        private IShuffleStrategy  shuffleStrategy; 
+        private BoardLogicService boardLogic; 
 
-        private Node firstSelectedNode = null;
-        private Vector3[] cachedPathPoints = new Vector3[4];
+        private Node      firstSelectedNode = null;
+        private Vector3[] cachedPathPoints  = new Vector3[4];
 
         private void Awake()
         {
@@ -40,10 +37,9 @@ namespace CahtFramework.Pikachu
             if (this.input != null) this.input.OnNodeClicked += this.HandleNodeClicked;
             else Debug.LogError("[BoardController] No IInput implementation found!");
 
-            this.pathfinder = new OrthogonalPathfinder(); 
-            this.shuffleStrategy = new FisherYatesShuffleStrategy();
-
-            if (this.pathLineRenderer != null) this.pathLineRenderer.enabled = false;
+            IPathfinding pathfinder = new OrthogonalPathfinder(); 
+            this.boardLogic         = new BoardLogicService(pathfinder);
+            this.shuffleStrategy    = new FisherYatesShuffleStrategy(); 
         }
 
         private void OnDestroy()
@@ -51,17 +47,20 @@ namespace CahtFramework.Pikachu
             if (this.input != null) this.input.OnNodeClicked -= this.HandleNodeClicked;
         }
 
+        public void SetShuffleStrategy(IShuffleStrategy newStrategy)
+        {
+            this.shuffleStrategy = newStrategy;
+        }
+
         public void ClearBoard()
         {
             this.StopAllCoroutines();
             DOTween.KillAll();
 
-            if (this.pathLineRenderer != null) this.pathLineRenderer.enabled = false;
+            if (this.pathRenderer != null) this.pathRenderer.HidePath();
 
             this.firstSelectedNode = null;
-            if (this.nodeToView != null) this.nodeToView.Clear();
-            if (this.viewToNode != null) this.viewToNode.Clear();
-            this.grid = null;
+            this.Data.Clear(); 
 
             if (this.boardContainer != null)
                 for (var i = this.boardContainer.childCount - 1; i >= 0; i--)
@@ -86,19 +85,17 @@ namespace CahtFramework.Pikachu
             this.currentLevelData = levelData;
             this.currentTheme     = themeData;
 
-            var cols = levelData.columns;
-            var rows = levelData.rows;
-            this.grid = new Node[cols, rows];
+            this.Data.Initialize(levelData.columns, levelData.rows);
 
-            var totalNodes = cols * rows;
+            var totalNodes = levelData.columns * levelData.rows;
             var spawnPool  = new List<PieceData>();
 
             if (this.currentLevelData.HasGeneratorModule) 
                 spawnPool = this.currentLevelData.generatorModule.GeneratePieces(totalNodes, levelData.availablePieces);
 
             var pieceIndex = 0;
-            for (var x = 0; x < cols; x++)
-            for (var y = 0; y < rows; y++)
+            for (var x = 0; x < this.Data.Columns; x++)
+            for (var y = 0; y < this.Data.Rows; y++)
             {
                 var newNode = new Node(x, y);
                 if (pieceIndex < spawnPool.Count)
@@ -107,8 +104,6 @@ namespace CahtFramework.Pikachu
                     pieceIndex++;
                 }
 
-                this.grid[x, y] = newNode;
-
                 var position = this.GetWorldPosition(x, y);
                 var view     = Instantiate(this.nodeViewPrefab, position, Quaternion.identity, this.boardContainer);
                 view.name = $"Node_{x}_{y}";
@@ -116,24 +111,23 @@ namespace CahtFramework.Pikachu
                 var skin = !newNode.IsEmpty && this.currentTheme != null ? this.currentTheme.GetSkinForPiece(newNode.Piece) : null;
                 view.SetSkin(skin);
 
-                this.nodeToView.Add(newNode, view);
-                this.viewToNode.Add(view, newNode);
+                this.Data.RegisterNode(newNode, view);
             }
 
             if (this.currentLevelData.HasEntranceModule)
             {
                 if (this.input != null) this.input.DisableInput();
-                this.currentLevelData.entranceModule.AnimateEntrance(new List<NodeView>(this.nodeToView.Values), () =>
+                this.currentLevelData.entranceModule.AnimateEntrance(this.Data.GetAllViews(), () =>
                 {
                     if (this.input != null) this.input.EnableInput();
                 });
             }
         }
 
-
         private void HandleNodeClicked(NodeView clickedView)
         {
-            if (!this.viewToNode.TryGetValue(clickedView, out var clickedNode) || clickedNode.IsEmpty) return;
+            Node clickedNode = this.Data.GetNode(clickedView);
+            if (clickedNode == null || clickedNode.IsEmpty) return;
 
             if (this.firstSelectedNode == null)
                 this.SelectFirstNode(clickedNode);
@@ -146,32 +140,25 @@ namespace CahtFramework.Pikachu
         private void SelectFirstNode(Node node)
         {
             this.firstSelectedNode = node;
-            this.nodeToView[node].SetSelected(true);
+            this.Data.GetView(node).SetSelected(true);
         }
 
         private void DeselectNode()
         {
             if (this.firstSelectedNode != null)
             {
-                this.nodeToView[this.firstSelectedNode].SetSelected(false);
+                this.Data.GetView(this.firstSelectedNode).SetSelected(false);
                 this.firstSelectedNode = null;
             }
         }
 
         private void ProcessMatchAttempt(Node first, Node second)
         {
-            if (first.Piece.ID == second.Piece.ID)
+            var path = this.boardLogic.CheckMatchAndGetPath(this.Data, first, second);
+            
+            if (path != null)
             {
-                var path = this.pathfinder.FindPath(this.grid, first, second);
-                if (path != null)
-                {
-                    this.ExecuteMatch(first, second, path);
-                }
-                else
-                {
-                    this.DeselectNode();
-                    this.SelectFirstNode(second);
-                }
+                this.ExecuteMatch(first, second, path);
             }
             else
             {
@@ -182,14 +169,17 @@ namespace CahtFramework.Pikachu
 
         private void ExecuteMatch(Node first, Node second, List<Vector2Int> path)
         {
-            this.nodeToView[first].SetSelected(false);
-            this.nodeToView[second].SetSelected(false);
+            NodeView view1 = this.Data.GetView(first);
+            NodeView view2 = this.Data.GetView(second);
+
+            view1.SetSelected(false);
+            view2.SetSelected(false);
 
             first.ClearPiece();
             second.ClearPiece();
 
-            this.nodeToView[first].SetSkin(null);
-            this.nodeToView[second].SetSkin(null);
+            view1.SetSkin(null);
+            view2.SetSkin(null);
 
             this.firstSelectedNode = null;
 
@@ -200,7 +190,18 @@ namespace CahtFramework.Pikachu
         {
             if (this.input != null) this.input.DisableInput();
 
-            yield return this.StartCoroutine(this.ShowPathRoutine(path));
+            int pointCount = path.Count;
+            for (var i = 0; i < pointCount; i++)
+            {
+                var worldPos = this.GetWorldPosition(path[i].x, path[i].y);
+                worldPos.z = -1f; 
+                this.cachedPathPoints[i] = worldPos;
+            }
+            
+            if (this.pathRenderer != null)
+            {
+                yield return this.StartCoroutine(this.pathRenderer.ShowPathRoutine(this.cachedPathPoints, pointCount));
+            }
 
             if (this.currentLevelData.HasShiftModule)
             {
@@ -208,17 +209,17 @@ namespace CahtFramework.Pikachu
                 yield return new WaitForSeconds(this.shiftDuration);
             }
 
-            if (!this.HasAnyValidMatch())
+            if (!this.boardLogic.HasAnyValidMatch(this.Data))
             {
                 bool isBoardClear = true;
-                foreach (var node in this.grid)
+                foreach (var node in this.Data.Grid)
                 {
                     if (node != null && !node.IsEmpty) { isBoardClear = false; break; }
                 }
 
                 if (!isBoardClear)
                 {
-                    Debug.Log("[BoardController] Dead End! Đang tự động xáo trộn...");
+                    Debug.Log("[BoardController] Dead End! Automating shuffle...");
                     yield return this.StartCoroutine(this.ShuffleBoardRoutine());
                 }
                 else
@@ -230,42 +231,6 @@ namespace CahtFramework.Pikachu
             if (this.input != null) this.input.EnableInput();
         }
 
-
-        private bool HasAnyValidMatch()
-        {
-            Dictionary<int, List<Node>> nodesByID = new();
-            
-            for (int x = 0; x < this.currentLevelData.columns; x++)
-            {
-                for (int y = 0; y < this.currentLevelData.rows; y++)
-                {
-                    Node node = this.grid[x, y];
-                    if (!node.IsEmpty)
-                    {
-                        int id = node.Piece.ID;
-                        if (!nodesByID.ContainsKey(id)) nodesByID[id] = new List<Node>();
-                        nodesByID[id].Add(node);
-                    }
-                }
-            }
-
-            foreach (var kvp in nodesByID)
-            {
-                var group = kvp.Value;
-                if (group.Count < 2) continue; 
-
-                for (int i = 0; i < group.Count; i++)
-                {
-                    for (int j = i + 1; j < group.Count; j++)
-                    {
-                        if (this.pathfinder.FindPath(this.grid, group[i], group[j]) != null)
-                            return true;
-                    }
-                }
-            }
-            return false;
-        }
-
         public void ForceShuffleBoard() => this.StartCoroutine(this.ShuffleBoardRoutine());
 
         private IEnumerator ShuffleBoardRoutine()
@@ -273,11 +238,11 @@ namespace CahtFramework.Pikachu
             List<Node> activeNodes = new List<Node>();
             List<PieceData> activePieces = new List<PieceData>();
 
-            for (int x = 0; x < this.currentLevelData.columns; x++)
+            for (int x = 0; x < this.Data.Columns; x++)
             {
-                for (int y = 0; y < this.currentLevelData.rows; y++)
+                for (int y = 0; y < this.Data.Rows; y++)
                 {
-                    Node node = this.grid[x, y];
+                    Node node = this.Data.Grid[x, y];
                     if (!node.IsEmpty)
                     {
                         activeNodes.Add(node);
@@ -300,17 +265,17 @@ namespace CahtFramework.Pikachu
                 }
                 attempts++;
                 
-            } while (!this.HasAnyValidMatch() && attempts < maxAttempts);
+            } while (!this.boardLogic.HasAnyValidMatch(this.Data) && attempts < maxAttempts);
 
             if (attempts >= maxAttempts)
             {
-                Debug.LogWarning("[BoardController] Cảnh báo: Trộn 50 lần vẫn không tìm thấy đường. Map có thể bị lỗi thiết kế kẹt góc.");
+                Debug.LogWarning("[BoardController] Warning: No valid matches found after 50 shuffle attempts. Potential level design flaw or corner-lock.");
             }
 
             float animationDuration = 0.4f;
             foreach (Node node in activeNodes)
             {
-                NodeView view = this.nodeToView[node];
+                NodeView view = this.Data.GetView(node);
                 
                 view.transform.DOScale(Vector3.zero, animationDuration / 2f).OnComplete(() =>
                 {
@@ -323,20 +288,54 @@ namespace CahtFramework.Pikachu
             yield return new WaitForSeconds(animationDuration);
         }
 
+        public void ShowHint()
+        {
+            if (this.input != null) this.input.DisableInput();
+
+            NodePair match = this.boardLogic.FindValidMatch(this.Data);
+            
+            if (match != null)
+            {
+                NodeView view1 = this.Data.GetView(match.node1);
+                NodeView view2 = this.Data.GetView(match.node2);
+
+                view1.SetSelected(true);
+                view2.SetSelected(true);
+
+                Sequence hintSeq = DOTween.Sequence();
+                hintSeq.Append(view1.transform.DOScale(1.2f, 0.2f).SetLoops(4, LoopType.Yoyo));
+                hintSeq.Join(view2.transform.DOScale(1.2f, 0.2f).SetLoops(4, LoopType.Yoyo));
+                
+                hintSeq.OnComplete(() => {
+                    view1.transform.localScale = Vector3.one;
+                    view2.transform.localScale = Vector3.one;
+                    
+                    view1.SetSelected(false);
+                    view2.SetSelected(false);
+
+                    if (this.input != null) this.input.EnableInput();
+                });
+            }
+            else
+            {
+                Debug.LogWarning("[BoardController] No hints available! Board should be shuffling.");
+                if (this.input != null) this.input.EnableInput();
+            }
+        }
 
         private void ApplyGravityShift()
         {
-            var hasChanged = this.currentLevelData.shiftModule.ApplyShift(this.grid, this.currentLevelData.columns, this.currentLevelData.rows);
+            var hasChanged = this.currentLevelData.shiftModule.ApplyShift(this.Data.Grid, this.Data.Columns, this.Data.Rows);
             if (hasChanged) this.UpdateAllViews();
         }
 
         private void UpdateAllViews()
         {
-            for (var x = 0; x < this.currentLevelData.columns; x++)
-            for (var y = 0; y < this.currentLevelData.rows; y++)
+            for (var x = 0; x < this.Data.Columns; x++)
+            for (var y = 0; y < this.Data.Rows; y++)
             {
-                var node = this.grid[x, y];
-                var view = this.nodeToView[node];
+                var node = this.Data.Grid[x, y];
+                var view = this.Data.GetView(node);
 
                 var skin = !node.IsEmpty && this.currentTheme != null ? this.currentTheme.GetSkinForPiece(node.Piece) : null;
                 view.SetSkin(skin);
@@ -349,78 +348,13 @@ namespace CahtFramework.Pikachu
             }
         }
 
-        private IEnumerator ShowPathRoutine(List<Vector2Int> path)
-        {
-            if (this.pathLineRenderer == null || path == null || path.Count == 0) yield break;
-
-            int pointCount = path.Count;
-            this.pathLineRenderer.positionCount = pointCount;
-
-            for (var i = 0; i < pointCount; i++)
-            {
-                var worldPos = this.GetWorldPosition(path[i].x, path[i].y);
-                worldPos.z = -1f; 
-                this.cachedPathPoints[i] = worldPos;
-            }
-
-            this.pathLineRenderer.SetPositions(this.cachedPathPoints);
-            this.pathLineRenderer.enabled = true;
-
-            yield return new WaitForSeconds(this.pathDisplayDuration);
-            this.pathLineRenderer.enabled = false;
-        }
-        
 #if UNITY_EDITOR
-        //Testing
-        public NodePair Editor_FindFirstValidMatch()
-        {
-            if (this.grid == null) return null;
-
-            Dictionary<int, List<Node>> nodesByID = new();
-            
-            for (int x = 0; x < this.currentLevelData.columns; x++)
-            {
-                for (int y = 0; y < this.currentLevelData.rows; y++)
-                {
-                    Node node = this.grid[x, y];
-                    if (!node.IsEmpty)
-                    {
-                        int id = node.Piece.ID;
-                        if (!nodesByID.ContainsKey(id)) nodesByID[id] = new List<Node>();
-                        nodesByID[id].Add(node);
-                    }
-                }
-            }
-
-            foreach (var kvp in nodesByID)
-            {
-                var group = kvp.Value;
-                if (group.Count < 2) continue; 
-
-                for (int i = 0; i < group.Count; i++)
-                {
-                    for (int j = i + 1; j < group.Count; j++)
-                    {
-                        var path = this.pathfinder.FindPath(this.grid, group[i], group[j]);
-                        if (path != null) return new NodePair { node1 = group[i], node2 = group[j] };
-                    }
-                }
-            }
-            return null;
-        }
+        public NodePair Editor_FindFirstValidMatch() => this.boardLogic.FindValidMatch(this.Data);
 
         public void Editor_SimulateClick(Node node)
         {
-            if (this.nodeToView.TryGetValue(node, out NodeView view))
-            {
-                this.HandleNodeClicked(view);
-            }
-        }
-        
-        public class NodePair
-        {
-            public Node node1;
-            public Node node2;
+            NodeView view = this.Data.GetView(node);
+            if (view != null) this.HandleNodeClicked(view);
         }
 #endif
     }

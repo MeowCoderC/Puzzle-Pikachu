@@ -1,0 +1,3 @@
+[submodule "Assets/CahtFramework"]
+	path = Assets/CahtFramework
+	url = https://github.com/MeowCoderC/CahtFramework.git

@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ab647a00d0483c4cbd49a0e2a652673, type: 3}
+  m_Name: LEVELDATA_2
+  m_EditorClassIdentifier: 
+  icon: {fileID: 21300000, guid: 0521d6a98295aac41ada64df38c4591e, type: 3}
+  id: 1
+  codeName: 2
+  displayName: 
+  description: 
+  columns: 16
+  rows: 9
+  availablePieces:
+  - {fileID: 11400000, guid: 4c99767587a7e4947983ebd039356834, type: 2}
+  - {fileID: 11400000, guid: f54b4c420dbb8494facf1af30ad93fd5, type: 2}
+  - {fileID: 11400000, guid: 349659ece11bb87458c72d3b0cc14195, type: 2}
+  - {fileID: 11400000, guid: aef8c808e6221ee4e9731d9ab076f8c5, type: 2}
+  - {fileID: 11400000, guid: c0be6bee6e0be4e419b65ed5a6ee7d0e, type: 2}
+  - {fileID: 11400000, guid: faa834587adf54440beab2afc234af59, type: 2}
+  - {fileID: 11400000, guid: e19fd7085fec30e41a99286d0084ad62, type: 2}
+  - {fileID: 11400000, guid: f1fdd034be1dc0e4fb2aaec58aeb741d, type: 2}
+  - {fileID: 11400000, guid: 531ddaa30b7e7c442b6d21792374e48f, type: 2}
+  - {fileID: 11400000, guid: aff34da0304e13b4caf3c8c479c95349, type: 2}
+  - {fileID: 11400000, guid: 9defff800704b1b40add1461578557cf, type: 2}
+  - {fileID: 11400000, guid: b5c941978d002c145be0061e594a463e, type: 2}
+  - {fileID: 11400000, guid: 30e056c1f167a8f48b8b925522c7504f, type: 2}
+  - {fileID: 11400000, guid: 57c9930f680d3cf43ad2f74df896ead3, type: 2}
+  - {fileID: 11400000, guid: da96929ef1613104ba4dc05816aeac2b, type: 2}
+  - {fileID: 11400000, guid: 2c71ba484c5dfeb409476ca6b346ca79, type: 2}
+  - {fileID: 11400000, guid: b334c09a74e00134ca7eb574513f81c8, type: 2}
+  - {fileID: 11400000, guid: b4d124db9c11d484d8029ea7be3f6ad3, type: 2}
+  - {fileID: 11400000, guid: c5a9a781324796049a28a2860d67a59c, type: 2}
+  - {fileID: 11400000, guid: 858fad7238ab88849856d20cbfdc2115, type: 2}
+  - {fileID: 11400000, guid: 953398b415533c342bae5c480880672e, type: 2}
+  - {fileID: 11400000, guid: 18d7b103c3757b34c9e0f7aa5aadb7f0, type: 2}
+  - {fileID: 11400000, guid: 56d7d1833d473454095cc25246f17f54, type: 2}
+  - {fileID: 11400000, guid: 324cd667f043e1345a7fee8f343a0c33, type: 2}
+  - {fileID: 11400000, guid: f6b95cb13916eb54d903c41dd64a5e1d, type: 2}
+  - {fileID: 11400000, guid: 31b769600c005d545b27402485cfe0c6, type: 2}
+  - {fileID: 11400000, guid: d84c06620bf37654e858b804a6ee471b, type: 2}
+  - {fileID: 11400000, guid: 6effc0d7ea54c29449da1fbcbc1690df, type: 2}
+  - {fileID: 11400000, guid: 1a32f40fc6df3aa4c8d40b2ab4cd35b9, type: 2}
+  - {fileID: 11400000, guid: 4f99e3469b8328f44bf36fc989297bdb, type: 2}
+  - {fileID: 11400000, guid: 8a7867b9afc087340b6530d599f7fc3d, type: 2}
+  - {fileID: 11400000, guid: 7447b36a1850b2147bab4e1a12e5a99c, type: 2}
+  - {fileID: 11400000, guid: 130b102476fc9214c8729cc1870add92, type: 2}
+  - {fileID: 11400000, guid: cf0d094f059498840afaade0187445de, type: 2}
+  - {fileID: 11400000, guid: e592e1d31984bdc47a0446793f00c659, type: 2}
+  generatorModule:
+    rid: 350298117299765314
+  entranceModule:
+    rid: -2
+  shiftModule:
+    rid: 350298117299765315
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
+    - rid: 350298117299765314
+      type: {class: FisherYatesPairedGenerator, ns: CahtFramework.Pikachu, asm: Assembly-CSharp}
+      data: 
+    - rid: 350298117299765315
+      type: {class: CenterEdgeShiftModule, ns: CahtFramework.Pikachu, asm: Assembly-CSharp}
+      data:
+        mode: 0
